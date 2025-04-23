@@ -1,0 +1,556 @@
+-- Blox Fruits Autofarm Script (GUI Completa com abas, slider e webhook)
+-- Atualizado para a Atualização 24
+
+if game.PlaceId == 2753915549 then World1 = true
+elseif game.PlaceId == 4442272183 then World2 = true
+elseif game.PlaceId == 7449423635 then World3 = true
+else game.Players.LocalPlayer:Kick("Versão não suportada. Aguarde uma atualização.") end
+
+ESPPlayer, ChestESP, IslandESP, DevilFruitESP, FlowerESP, RealFruitESP, AutoFarm = true, true, true, true, true, true, true
+WebhookURL = "https://discord.com/api/webhooks/SEU_WEBHOOK_AQUI"
+
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local Char = LP.Character or LP.CharacterAdded:Wait()
+
+local function isnil(thing) return thing == nil end
+local function round(n) return math.floor(tonumber(n) + 0.5) end
+local function notify(msg)
+    print("[Log] " .. msg)
+    if _G.ShowLogs and MainLog then MainLog.Text = msg end
+end
+local function sendWebhook(msg)
+    pcall(function()
+        local HttpService = game:GetService("HttpService")
+        local data = HttpService:JSONEncode({content = msg})
+        request = http_request or request or HttpPost or syn.request
+        request({Url = WebhookURL, Method = "POST", Headers = {['Content-Type'] = 'application/json'}, Body = data})
+    end)
+end
+
+local GUI = Instance.new("ScreenGui", game.CoreGui)
+GUI.Name = "BloxFruitsGUI"
+local Main = Instance.new("Frame", GUI)
+Main.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Main.Position = UDim2.new(0.35, 0, 0.3, 0)
+Main.Size = UDim2.new(0, 400, 0, 350)
+Main.Active = true
+Main.Draggable = true
+
+local TabBar = Instance.new("Frame", Main)
+TabBar.Size = UDim2.new(1, 0, 0, 30)
+TabBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+
+local function createTabBtn(name, posX, callback)
+    local btn = Instance.new("TextButton", TabBar)
+    btn.Text = name
+    btn.Size = UDim2.new(0, 120, 1, 0)
+    btn.Position = UDim2.new(0, posX, 0, 0)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local Tabs = {}
+for _, tabName in ipairs({"ESP", "Farm", "Config"}) do
+    local tab = Instance.new("Frame", Main)
+    tab.Visible = false
+    tab.Size = UDim2.new(1, 0, 1, -30)
+    tab.Position = UDim2.new(0, 0, 0, 30)
+    tab.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    Tabs[tabName] = tab
+end
+
+createTabBtn("ESP", 0, function()
+    for k, v in pairs(Tabs) do v.Visible = false end
+    Tabs.ESP.Visible = true
+end)
+createTabBtn("Farm", 120, function()
+    for k, v in pairs(Tabs) do v.Visible = false end
+    Tabs.Farm.Visible = true
+end)
+createTabBtn("Config", 240, function()
+    for k, v in pairs(Tabs) do v.Visible = false end
+    Tabs.Config.Visible = true
+end)
+Tabs.ESP.Visible = true
+ 
+-- Criação de botões toggle
+local function createToggle(text, parent, varName)
+    local btn = Instance.new("TextButton", parent)
+    btn.Text = text .. ": ON"
+    btn.Size = UDim2.new(0, 360, 0, 30)
+    btn.Position = UDim2.new(0, 20, 0, #parent:GetChildren() * 35)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.MouseButton1Click:Connect(function()
+        _G[varName] = not _G[varName]
+        btn.Text = text .. ": " .. (_G[varName] and "ON" or "OFF")
+    end)
+end
+
+createToggle("ESP Jogadores", Tabs.ESP, "ESPPlayer")
+createToggle("ESP Baús", Tabs.ESP, "ChestESP")
+createToggle("ESP Frutas", Tabs.ESP, "DevilFruitESP")
+createToggle("ESP Flores", Tabs.ESP, "FlowerESP")
+createToggle("ESP Frutas Reais", Tabs.ESP, "RealFruitESP")
+
+createToggle("AutoFarm", Tabs.Farm, "AutoFarm")
+
+-- Slider de velocidade
+local SpeedLabel = Instance.new("TextLabel", Tabs.Config)
+SpeedLabel.Text = "Velocidade do Player"
+SpeedLabel.Size = UDim2.new(0, 200, 0, 25)
+SpeedLabel.Position = UDim2.new(0, 20, 0, 10)
+SpeedLabel.TextColor3 = Color3.new(1, 1, 1)
+SpeedLabel.Font = Enum.Font.Gotham
+SpeedLabel.TextSize = 14
+SpeedLabel.BackgroundTransparency = 1
+
+local SpeedSlider = Instance.new("TextButton", Tabs.Config)
+SpeedSlider.Size = UDim2.new(0, 300, 0, 20)
+SpeedSlider.Position = UDim2.new(0, 20, 0, 40)
+SpeedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SpeedSlider.Text = "Arraste aqui para ajustar"
+SpeedSlider.TextColor3 = Color3.new(1, 1, 1)
+SpeedSlider.TextSize = 14
+SpeedSlider.MouseButton1Down:Connect(function()
+    local move;
+    move = UIS.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            local pos = math.clamp((input.Position.X - SpeedSlider.AbsolutePosition.X) / SpeedSlider.AbsoluteSize.X, 0, 1)
+            local newSpeed = math.floor(16 + pos * 100)
+            if Char:FindFirstChild("Humanoid") then
+                Char.Humanoid.WalkSpeed = newSpeed
+                SpeedSlider.Text = "Velocidade: " .. newSpeed
+            end
+        end
+    end)
+    UIS.InputEnded:Wait()
+    move:Disconnect()
+end)
+
+-- Logs na aba Config
+local LogBox = Instance.new("TextLabel", Tabs.Config)
+LogBox.Size = UDim2.new(0, 360, 0, 30)
+LogBox.Position = UDim2.new(0, 20, 0, 80)
+LogBox.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+LogBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+LogBox.Font = Enum.Font.GothamSemibold
+LogBox.TextSize = 14
+LogBox.Text = "[Logs carregando...]"
+LogBox.TextWrapped = true
+_G.ShowLogs = true
+MainLog = LogBox
+ -- Funções de ESP
+function UpdateIslandESP()
+    for i,v in pairs(game:GetService("Workspace")["_WorldOrigin"].Locations:GetChildren()) do
+        pcall(function()
+            if IslandESP and v.Name ~= "Sea" and not v:FindFirstChild("NameEsp") then
+                local bill = Instance.new("BillboardGui",v)
+                bill.Name = "NameEsp"
+                bill.ExtentsOffset = Vector3.new(0, 1, 0)
+                bill.Size = UDim2.new(1,200,1,30)
+                bill.Adornee = v
+                bill.AlwaysOnTop = true
+                local name = Instance.new("TextLabel",bill)
+                name.Font = Enum.Font.GothamBold
+                name.TextWrapped = true
+                name.Size = UDim2.new(1,0,1,0)
+                name.BackgroundTransparency = 1
+                name.TextStrokeTransparency = 0.5
+                name.TextColor3 = Color3.fromRGB(7, 236, 240)
+                name.Text = v.Name .. "\n" .. round((LP.Character.Head.Position - v.Position).Magnitude/3) .. " Distance"
+            end
+        end)
+    end
+end
+
+function UpdatePlayerChams()
+    for _,v in pairs(game:GetService("Players"):GetPlayers()) do
+        if v ~= LP and v.Character and v.Character:FindFirstChild("Head") then
+            if ESPPlayer and not v.Character.Head:FindFirstChild("NameEsp") then
+                local bill = Instance.new("BillboardGui",v.Character.Head)
+                bill.Name = "NameEsp"
+                bill.ExtentsOffset = Vector3.new(0, 1, 0)
+                bill.Size = UDim2.new(1,200,1,30)
+                bill.Adornee = v.Character.Head
+                bill.AlwaysOnTop = true
+                local name = Instance.new("TextLabel",bill)
+                name.Font = Enum.Font.Gotham
+                name.TextWrapped = true
+                name.Size = UDim2.new(1,0,1,0)
+                name.BackgroundTransparency = 1
+                name.TextStrokeTransparency = 0.5
+                name.TextColor3 = v.Team == LP.Team and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+                name.Text = v.Name .. "\n" .. round((LP.Character.Head.Position - v.Character.Head.Position).Magnitude/3) .. " Distance"
+            end
+        end
+    end
+end
+
+function UpdateChestChams()
+    for i,v in pairs(workspace:GetChildren()) do
+        if ChestESP and string.find(v.Name,"Chest") and not v:FindFirstChild("NameEsp") then
+            local bill = Instance.new("BillboardGui",v)
+            bill.Name = "NameEsp"
+            bill.ExtentsOffset = Vector3.new(0, 1, 0)
+            bill.Size = UDim2.new(1,200,1,30)
+            bill.Adornee = v
+            bill.AlwaysOnTop = true
+            local name = Instance.new("TextLabel",bill)
+            name.Font = Enum.Font.Gotham
+            name.TextWrapped = true
+            name.Size = UDim2.new(1,0,1,0)
+            name.BackgroundTransparency = 1
+            name.TextStrokeTransparency = 0.5
+            name.Text = v.Name .. "\n" .. round((LP.Character.Head.Position - v.Position).Magnitude/3) .. " Distance"
+        end
+    end
+end
+
+function UpdateDevilChams()
+    for i,v in pairs(workspace:GetChildren()) do
+        if DevilFruitESP and v:FindFirstChild("Handle") and string.find(v.Name, "Fruit") and not v.Handle:FindFirstChild("NameEsp") then
+            local bill = Instance.new("BillboardGui",v.Handle)
+            bill.Name = "NameEsp"
+            bill.ExtentsOffset = Vector3.new(0, 1, 0)
+            bill.Size = UDim2.new(1,200,1,30)
+            bill.Adornee = v.Handle
+            bill.AlwaysOnTop = true
+            local name = Instance.new("TextLabel",bill)
+            name.Font = Enum.Font.Gotham
+            name.TextWrapped = true
+            name.Size = UDim2.new(1,0,1,0)
+            name.BackgroundTransparency = 1
+            name.TextStrokeTransparency = 0.5
+            name.TextColor3 = Color3.fromRGB(255, 255, 255)
+            name.Text = v.Name .. "\n" .. round((LP.Character.Head.Position - v.Handle.Position).Magnitude/3) .. " Distance"
+            sendWebhook("Fruta detectada: " .. v.Name)
+            notify("Fruta detectada: " .. v.Name)
+        end
+    end
+end
+
+function UpdateFlowerChams()
+    for i,v in pairs(workspace:GetChildren()) do
+        if FlowerESP and (v.Name == "Flower1" or v.Name == "Flower2") and not v:FindFirstChild("NameEsp") then
+            local bill = Instance.new("BillboardGui",v)
+            bill.Name = "NameEsp"
+            bill.ExtentsOffset = Vector3.new(0, 1, 0)
+            bill.Size = UDim2.new(1,200,1,30)
+            bill.Adornee = v
+            bill.AlwaysOnTop = true
+            local name = Instance.new("TextLabel",bill)
+            name.Font = Enum.Font.Gotham
+            name.TextWrapped = true
+            name.Size = UDim2.new(1,0,1,0)
+            name.BackgroundTransparency = 1
+            name.TextStrokeTransparency = 0.5
+            name.TextColor3 = Color3.fromRGB(255, 255, 0)
+            name.Text = (v.Name == "Flower1" and "Blue Flower" or "Red Flower") .. "\n" .. round((LP.Character.Head.Position - v.Position).Magnitude/3) .. " Distance"
+            sendWebhook("Flor encontrada: " .. name.Text)
+            notify("Flor encontrada!")
+        end
+    end
+end
+
+-- Loop principal
+spawn(function()
+    while wait(1) do
+        pcall(function()
+            if IslandESP then UpdateIslandESP() end
+            if ESPPlayer then UpdatePlayerChams() end
+            if ChestESP then UpdateChestChams() end
+            if DevilFruitESP then UpdateDevilChams() end
+            if FlowerESP then UpdateFlowerChams() end
+        end)
+    end
+end)
+
+
+
+function CheckQuest()
+    local level = LP.Data.Level.Value
+    if World1 then
+        if level <= 9 then
+            return {Mon = "Bandit", Quest = "BanditQuest1", QuestNum = 1, CFrameQuest = CFrame.new(1060, 16, 1547), CFrameMon = CFrame.new(1145, 17, 1636)}
+        elseif level <= 14 then
+            return {Mon = "Monkey", Quest = "JungleQuest", QuestNum = 1, CFrameQuest = CFrame.new(-1603, 36, 145), CFrameMon = CFrame.new(-1443, 70, 20)}
+        end
+    elseif World2 then
+        if level <= 1175 then
+            return {Mon = "Raider", Quest = "Area1Quest", QuestNum = 1, CFrameQuest = CFrame.new(-429, 73, 1837), CFrameMon = CFrame.new(-746, 39, 2390)}
+        end
+    elseif World3 then
+        if level >= 2525 and level <= 2549 then
+            return {Mon = "Hydra Enforcer", Quest = "HydraQuest", QuestNum = 1, CFrameQuest = CFrame.new(-15000, 100, 8500), CFrameMon = CFrame.new(-15100, 110, 8600)}
+        elseif level >= 2550 and level <= 2574 then
+            return {Mon = "Venomous Assailant", Quest = "HydraQuest", QuestNum = 2, CFrameQuest = CFrame.new(-15000, 100, 8500), CFrameMon = CFrame.new(-14900, 110, 8700)}
+        elseif level >= 2575 and level <= 2599 then
+            return {Mon = "Hydra Leader", Quest = "DojoQuest", QuestNum = 1, CFrameQuest = CFrame.new(-16000, 120, 9000), CFrameMon = CFrame.new(-16100, 125, 9100)}
+        elseif level >= 2600 and level <= 2624 then
+            return {Mon = "Serpent Hunter", Quest = "DojoQuest", QuestNum = 2, CFrameQuest = CFrame.new(-16000, 120, 9000), CFrameMon = CFrame.new(-15850, 123, 9050)}
+        elseif level >= 2625 and level <= 2649 then
+            return {Mon = "Skull Slayer", Quest = "LavaQuest", QuestNum = 1, CFrameQuest = CFrame.new(-17000, 130, 9500), CFrameMon = CFrame.new(-17100, 135, 9600)}
+        elseif level >= 2650 then
+            return {Mon = "Lava Golem", Quest = "LavaQuest", QuestNum = 2, CFrameQuest = CFrame.new(-17000, 130, 9500), CFrameMon = CFrame.new(-17250, 138, 9700)}
+        end
+    end
+end
+
+
+
+
+-- AutoFarm Seguro com validações
+spawn(function()
+    while task.wait(1) do
+        if AutoFarm then
+            pcall(function()
+                local config = CheckQuest()
+                if config then
+                    local plr = game.Players.LocalPlayer
+                    local char = plr.Character or plr.CharacterAdded:Wait()
+                    local hrp = char:WaitForChild("HumanoidRootPart", 3)
+                    if not hrp then return end
+
+                    -- Teleporte seguro para o NPC da missão
+                    if (hrp.Position - config.CFrameQuest.Position).Magnitude > 100 then
+                        hrp.CFrame = config.CFrameQuest + Vector3.new(0, 3, 0)
+                        wait(1)
+                    end
+
+                    -- Iniciar missão
+                    local success, _ = pcall(function()
+                        game:GetService("ReplicatedStorage").Remotes.CommQuest:InvokeServer("StartQuest", config.Quest, config.QuestNum)
+                    end)
+
+                    wait(0.5)
+
+                    -- Teleporte para os inimigos, com checagem de distância
+                    if (hrp.Position - config.CFrameMon.Position).Magnitude > 100 then
+                        hrp.CFrame = config.CFrameMon + Vector3.new(0, 3, 0)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+
+
+-- Auto Haki
+spawn(function()
+    while wait(1) do
+        if AutoFarm then
+            local plr = game.Players.LocalPlayer
+            if plr.Character:FindFirstChild("HumanoidRootPart") and not plr.Character:FindFirstChild("HasBuso") then
+                game:GetService("ReplicatedStorage").Remotes.Comm:InvokeServer("Buso")
+            end
+        end
+    end
+end)
+
+-- Auto Skills (Z, X, C, V)
+spawn(function()
+    while wait(1.5) do
+        if AutoFarm then
+            for _, key in ipairs({"Z", "X", "C", "V"}) do
+                pcall(function()
+                    keypress(Enum.KeyCode[key])
+                    wait(0.1)
+                    keyrelease(Enum.KeyCode[key])
+                end)
+            end
+        end
+    end
+end)
+
+
+
+-- Anti-AFK
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    local vu = game:GetService("VirtualUser")
+    vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    wait(1)
+    vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+-- Farm de Bosses por Nome
+BossTarget = "Cake Queen" -- Altere para o nome do boss que deseja farmar
+
+spawn(function()
+    while wait(3) do
+        if AutoFarm and BossTarget ~= "" then
+            for _, v in pairs(workspace.Enemies:GetChildren()) do
+                if v.Name:find(BossTarget) and v:FindFirstChild("HumanoidRootPart") then
+                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0, 15, 20)
+                    break
+                end
+            end
+        end
+    end
+end)
+
+-- Suporte básico entre ilhas (teleporte automático se estiver longe do NPC ou mobs)
+function TeleportTo(pos)
+    local root = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if root then
+        root.CFrame = pos
+    end
+end
+
+-- Melhorar o AutoFarm com teleporte automático se muito longe
+spawn(function()
+    while wait(2) do
+        if AutoFarm then
+            local config = CheckQuest()
+            if config then
+                local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and (hrp.Position - config.CFrameMon.Position).Magnitude > 5000 then
+                    TeleportTo(config.CFrameQuest)
+                end
+            end
+        end
+    end
+end)
+
+
+
+-- [Salvar Configuração de Boss]
+local configFile = "bloxfruits_config.json"
+local HttpService = game:GetService("HttpService")
+local BossTarget = "Cake Queen"
+
+-- Carregar config
+pcall(function()
+    if readfile and isfile and isfile(configFile) then
+        local data = HttpService:JSONDecode(readfile(configFile))
+        BossTarget = data.Boss or BossTarget
+    end
+end)
+
+-- Criar input para mudar BossTarget
+local InputLabel = Instance.new("TextLabel", Tabs.Config)
+InputLabel.Text = "Boss para farmar:"
+InputLabel.Size = UDim2.new(0, 360, 0, 20)
+InputLabel.Position = UDim2.new(0, 20, 0, 120)
+InputLabel.TextColor3 = Color3.new(1, 1, 1)
+InputLabel.BackgroundTransparency = 1
+InputLabel.Font = Enum.Font.Gotham
+InputLabel.TextSize = 14
+
+local BossBox = Instance.new("TextBox", Tabs.Config)
+BossBox.Size = UDim2.new(0, 360, 0, 25)
+BossBox.Position = UDim2.new(0, 20, 0, 145)
+BossBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+BossBox.TextColor3 = Color3.new(1, 1, 1)
+BossBox.Font = Enum.Font.Gotham
+BossBox.PlaceholderText = "Ex: Cake Queen, Longma..."
+BossBox.Text = BossTarget
+BossBox.TextSize = 14
+BossBox.FocusLost:Connect(function()
+    BossTarget = BossBox.Text
+    if writefile then
+        pcall(function()
+            writefile(configFile, HttpService:JSONEncode({Boss = BossTarget}))
+        end)
+    end
+end)
+
+-- Farm de Boss com proteção
+spawn(function()
+    while wait(3) do
+        if AutoFarm and BossTarget ~= "" then
+            pcall(function()
+                for _, v in pairs(workspace.Enemies:GetChildren()) do
+                    if v.Name:lower():find(BossTarget:lower()) and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                        local root = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            root.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0, 15, 20)
+                        end
+                        break
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+
+
+-- Auto Raid (Awakening System)
+AutoRaid = true
+RaidChipName = "Flame" -- Altere para a fruta desejada: Flame, Light, Ice, etc.
+
+spawn(function()
+    while wait(10) do
+        if AutoRaid then
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local CommF_ = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+            pcall(function()
+                CommF_:InvokeServer("AwakeningProgress", RaidChipName)
+                CommF_:InvokeServer("ActivateAwakening")
+                CommF_:InvokeServer("Raid", "Start")
+            end)
+        end
+    end
+end)
+
+-- Auto Farm de Frutas no Mapa
+FruitSniper = true
+
+spawn(function()
+    while wait(5) do
+        if FruitSniper then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("Tool") and obj:FindFirstChild("Handle") and obj.Name:lower():find("fruit") then
+                    local root = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        root.CFrame = obj.Handle.CFrame + Vector3.new(0, 3, 0)
+                        notify("Fruta encontrada: " .. obj.Name)
+                        sendWebhook("Fruta coletada: " .. obj.Name)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end)
+
+
+
+-- Menu Flutuante (painel menor com logo e nome GHOST)
+local ghostFrame = Instance.new("Frame")
+ghostFrame.Size = UDim2.new(0, 150, 0, 60)
+ghostFrame.Position = UDim2.new(1, -160, 1, -80)
+ghostFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ghostFrame.BorderSizePixel = 1
+ghostFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+ghostFrame.Draggable = true
+ghostFrame.Active = true
+ghostFrame.Name = "GhostFloat"
+ghostFrame.Parent = game.CoreGui
+
+local ghostImage = Instance.new("ImageLabel", ghostFrame)
+ghostImage.Size = UDim2.new(0, 50, 0, 50)
+ghostImage.Position = UDim2.new(0, 5, 0, 5)
+ghostImage.BackgroundTransparency = 1
+ghostImage.Image = "rbxassetid://11600494785"
+
+local ghostText = Instance.new("TextLabel", ghostFrame)
+ghostText.Size = UDim2.new(0, 85, 0, 50)
+ghostText.Position = UDim2.new(0, 60, 0, 5)
+ghostText.BackgroundTransparency = 1
+ghostText.Text = "GHOST"
+ghostText.TextColor3 = Color3.fromRGB(255, 255, 255)
+ghostText.Font = Enum.Font.GothamBlack
+ghostText.TextSize = 20
+ghostText.TextXAlignment = Enum.TextXAlignment.Left
